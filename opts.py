@@ -7,7 +7,7 @@ def parse_opts():
                         help='annotation file of the dataset')
     parser.add_argument('--pair-file', type=str, default='data/select_data.json',
                         help='annotation file of the dataset')
-    parser.add_argument('--image-dir', type=str, default='../CelebA/img_align_celeba/',
+    parser.add_argument('--image-dir', type=str, default='../celebA/img_align_celeba/',
                         help='directory of the images')
  
 
@@ -34,7 +34,7 @@ def parse_opts():
                         help='starting epoch')
     parser.add_argument('--epochs', type=int, default=100,
                         help='upper epoch limit')
-    parser.add_argument('--batch-size', type=int, default=64,
+    parser.add_argument('--batch-size', type=int, default=512,
                         help='batch size')
     parser.add_argument('--resume-path', type=str, default=None,
                         help='the path of model to resume')

@@ -28,11 +28,9 @@ class encoder(nn.Module):
         self.fc2 = nn. Linear(256,512)
 
         self.classifylayer = nn.Linear(512,num_person)
-        self.softmax = nn.Softmax(num_person)
-        ##TODO
+        self.softmax = nn.LogSoftmax(dim=1)
         
     def forward(self, input):
-        ##TODO
         x = self.conv1(input)
         x = self.relu1(x)
         x = self.max_pooling1(x)
@@ -61,13 +59,9 @@ class encoder(nn.Module):
 class decoder(nn.Module):
     def __init__(self):
         super(decoder, self).__init__()
-        ##TODO
 
         self.fc1=nn.Linear(512, 256)
-        self.attributelayer = nn.Linear(6, 256)
-        # concatenate
-        # view(): # 256 *1*1
-        self.relu0 = nn.ReLU()
+        self.attribute_expand = nn.Linear(6, 256)
 
         self.TransConv1 = nn.ConvTranspose2d(512,256,3,stride=4) # 256*4*4
         self.relu1 = nn.ReLU()
@@ -81,19 +75,16 @@ class decoder(nn.Module):
         self.TransConv4 = nn.ConvTranspose2d(64, 32, 3,stride=2) # 32*32*32
         self.relu4 = nn.ReLU()
 
-        self.TransConv5 = nn.ConvTranspose2d(32, 3, 3,stride=2) # 3*64*64
+        self.TransConv5 = nn.ConvTranspose2d(32, 3, 3,stride=2,output_padding=1) # 3*64*64
         self.relu5 = nn.ReLU()
 
 
         
-    def forward(self, content, attribute):
-        ##TODO
+    def forward(self, content, attribute):                                                   
         x = self.fc1(content)
-        a = self.attributelayer(attribute)
-        x = torch.cat(x,a)
-        x = x.view(-1,256,1,1)
-
-        x = self.relu0(x)
+        a = self.attribute_expand(attribute)
+        x = torch.cat([x,a],dim=1)
+        x = x.view(-1,512,1,1)
 
         x = self.relu1(x)
         x = self.TransConv1(x)
@@ -121,4 +112,4 @@ class att_trans(nn.Module):
     def forward(self, img_1, img_att_2):
         content, identity = self.encoder(img_1)
         img2_pre = self.decoder(content, img_att_2)
-        return identity, img2_pre
+        return img2_pre, identity

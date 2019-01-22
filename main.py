@@ -5,6 +5,7 @@ import torch
 import torch.optim as optim
 import random
 import json
+import time
 from torch.utils.data import DataLoader
 from celebA import CelebA
 
@@ -56,14 +57,14 @@ def bar(current, total, prefix="", suffix="", bar_sz=25, end_string=None):
     
 def psnr(outputs, targets):
     # [batch, channel, width, height]
-    num_pixels = outputs.shape[2] * outputs.shape[3] * outputs.shape[4]
+    num_pixels = outputs.shape[2] * outputs.shape[3]
     batch_size = outputs.shape[0]
     seq_length = outputs.shape[1]
     psnr = torch.zeros((outputs.shape[0],outputs.shape[1]))
     for i in range(batch_size):
             mse = torch.mean((outputs[i,:,:,:] - targets[i,:,:,:])**2)
             psnr[i] = 20 * torch.log10(torch.max(outputs[i,:,:,:])) - 10 * torch.log10(mse)
-    return torch.sum(psnr)
+    return torch.mean(psnr)
 
 
 if __name__ == '__main__':
@@ -94,10 +95,10 @@ if __name__ == '__main__':
     eval_index_list = pair_list[40000:]
     
     transform_train = transforms.Compose([
-        transforms.Resize(64),
+        transforms.Resize((64,64)),
         transforms.ToTensor()])
     transform_val = transforms.Compose([
-        transforms.Resize(64),
+        transforms.Resize((64,64)),
         transforms.ToTensor()])
 
     train_dataset = CelebA(args.ann_file, args.image_dir, train_index_list, transform_train, transform_train)
@@ -111,9 +112,9 @@ if __name__ == '__main__':
     # Build the model
     ###############################################################################
     model = att_trans(100)
-    
+    model.cuda()
     mse_loss = torch.nn.MSELoss()
-    cross_entropy_loss = torch.nn.CrossEntropyLoss()
+    nll_loss = torch.nn.NLLLoss()
     
     optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum,
                           weight_decay=args.weight_decay)
@@ -133,67 +134,73 @@ if __name__ == '__main__':
     ###############################################################################
 
     for epoch in range(args.epochs):
+        epoch_start_time = time.time()
         loss_gen = AverageMeter()
-        loss_entropy = AverageMeter()
+        loss_classify = AverageMeter()
         loss = AverageMeter()
+        model.train()
         for batch_idx, data in enumerate(train_loader):
+            batch_start_time = time.time()
             img_1 = data[0].cuda()
             img_2 = data[1].cuda()
             img_2_atts = data[2].cuda() 
             person_id_num = data[3].cuda()
             
-            img_transfer, person_pre = model(img1, img_2_atts)
-            
+            img_transfer, person_pre = model(img_1, img_2_atts)
             loss_gen_cur = mse_loss(img_transfer, img_2)
-            loss_classify_cur = cross_entropy_loss(preson_pre, preson_id_num)
+            loss_classify_cur = nll_loss(person_pre, person_id_num)
             
-            loss_cur = loss_gen_cur + loss_classify_cur
+            loss_cur = loss_gen_cur + 0.1 * loss_classify_cur
             
             loss_cur.backward()
             optimizer.step()
             
+            
             loss_gen.update(loss_gen_cur.item())
             loss_classify.update(loss_classify_cur.item())
             loss.update(loss_cur.item())
-            
+            batch_time = time.time() - batch_start_time         
             bar(batch_idx, len(train_loader), "Epoch: {:3d} | ".format(epoch),
-            ' | time {batch_time.val:.3f} | loss {loss.val:5.2f} | loss_gen {loss_gen.val:5.2f} loss_classify {loss_classify.val:5.2f}  |'.format(
+            ' | time {batch_time:.3f} | loss {loss.val:5.2f} | loss_gen {loss_gen.val:5.2f} loss_classify {loss_classify.val:5.2f}  |'.format(
                 batch_time=batch_time, loss=loss, loss_gen=loss_gen, loss_classify=loss_classify), end_string="")
                 
      #logger.log_scalar('train_loss',train_loss, epoch)
         loss_gen_val = AverageMeter()
-        loss_entropy_val = AverageMeter()
+        loss_classify_val = AverageMeter()
         loss_val = AverageMeter()
         psnr_val = AverageMeter()
         
+        model.eval()
         for batch_idx, data in enumerate(train_loader):
+            batch_start_time = time.time()
             img_1 = data[0].cuda()
             img_2 = data[1].cuda()
             img_2_atts = data[2].cuda() 
             person_id_num = data[3].cuda()
 
-            img_transfer, person_pre = model(img1, img_2_atts)
+            img_transfer, person_pre = model(img_1, img_2_atts)
 
             loss_gen_cur = mse_loss(img_transfer, img_2)
-            loss_classify_cur = cross_entropy_loss(preson_pre, preson_id_num)
+            loss_classify_cur = nll_loss(person_pre, person_id_num)
             psnr_cur = psnr(img_transfer, img_2)
 
-            loss_cur = loss_gen_cur + loss_classify_cur
+            loss_cur = loss_gen_cur + 0.1 * loss_classify_cur
             loss_gen_val.update(loss_gen_cur.item())
             loss_classify_val.update(loss_classify_cur.item())
             loss_val.update(loss_cur.item())
             psnr_val.update(psnr_cur.item())
             
 
+            batch_time = time.time() - batch_start_time
             bar(batch_idx, len(train_loader), "Epoch: {:3d} | ".format(epoch),
-            ' | time {batch_time.val:.3f} | loss {loss.val:5.2f} | loss_gen {loss_gen.val:5.2f} loss_classify {loss_classify.val:5.2f}  |'.format(
+            ' | time {batch_time:.3f} | loss_val {loss.val:5.2f} | loss_gen_val {loss_gen.val:5.2f} loss_classify_val {loss_classify.val:5.2f}  |'.format(
                 batch_time=batch_time, loss=loss_val, loss_gen=loss_gen_val, loss_classify=loss_classify_val), end_string="")
                 
         print('\n| end of epoch {:3d} | time: {:5.5f}s | valid loss {:5.2f} |' 
             ' valid mse {:5.2f} | valid psnr {:5.2f}'
                 .format(epoch, (time.time() - epoch_start_time),loss_val.avg, loss_gen_val.avg ,psnr_val.avg))
         
-        if epoch%args.save == 0:
+        if epoch%args.save_every == 0:
             states = {
                          'epoch': epoch,
                          'state_dict': model.state_dict(),}
