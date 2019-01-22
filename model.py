@@ -27,7 +27,7 @@ class encoder(nn.Module):
         self.fc1 = nn.Linear(256,256)
         self.fc2 = nn. Linear(256,512)
 
-        self.classifylayer = nn.Linear(512, num_person)
+        self.classifylayer = nn.Linear(512,num_person)
         self.softmax = nn.Softmax(num_person)
         ##TODO
         
@@ -110,6 +110,7 @@ class decoder(nn.Module):
         x = self.relu5(x)
         x = self.TransConv5(x)
         return x
+
     
 class att_trans(nn.Module):
     def __init__(self,num_person):
