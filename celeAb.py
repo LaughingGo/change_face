@@ -28,11 +28,11 @@ class CelebA(Dataset):
         img_2_id = split_res[2]
         person_anns = anns[person_id]
         img_1_name = person_anns[img_1_id]["image_id"]
-        img_1 = cv2.imread(os.path.join(self.image_dir, img_1_name))
+        img_1 = torch.FloatTensor(cv2.imread(os.path.join(self.image_dir, img_1_name)))
         img_2_name = person_anns[img_2_id]["image_id"]
-        img_2 = cv2.imread(os.path.join(self.image_dir, img_2_name))
+        img_2 = torch.FloatTensor(cv2.imread(os.path.join(self.image_dir, img_2_name)))
         img_2_atts =  torch.FloatTensor(person_anns[img_2_id]["attributes"])
-        person_id_num = int(person_id)
+        person_id_num = torch.LongTensor([int(person_id)])
         return img_1, img_2, img_2_atts, person_id_num
     
     def __len__(self):
