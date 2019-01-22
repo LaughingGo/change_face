@@ -27,7 +27,7 @@ class encoder(nn.Module):
         self.fc1 = nn.Linear(256,256)
         self.fc2 = nn. Linear(256,512)
 
-        self.classifylayer = nn.Linear(num_person)
+        self.classifylayer = nn.Linear(512,num_person)
         self.softmax = nn.Softmax(num_person)
         ##TODO
         
@@ -63,8 +63,8 @@ class decoder(nn.Module):
         super(decoder, self).__init__()
         ##TODO
 
-        self.fc1=nn.Linear(256)
-        self.attributelayer = nn.Linear(256)
+        self.fc1=nn.Linear(512,256)
+        self.attributelayer = nn.Linear(6,256)
         # catenate
         # view(): # 256 *1*1
         self.relu0 = nn.ReLU()
