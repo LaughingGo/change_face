@@ -2,51 +2,32 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
+from functools import partial
 class encoder(nn.Module):
-    def __init__(self,num_person):
+    def __init__(self,dim=64,n_layer=5):
         super(encoder, self).__init__()
-        # default image size :64
-        self.conv1 = nn.Conv2d(3, 32, 3) # 3*64*64
-        self.conv2 = nn.Conv2d(32, 64, 3)
-        self.conv3 = nn.Conv2d(64, 128, 3)
-        self.conv4 = nn.Conv2d(128, 256, 3)
-        
-        self.relu = nn.ReLU()
-        self.max_pooling = nn.MaxPool2d(2) # 32*32*32
-
-        self.flatlayer = nn.MaxPool2d(4) # 256*1*1
-        self.fc1 = nn.Linear(256,256)
-        self.fc2 = nn. Linear(256,512)
-
-        self.classifylayer = nn.Linear(512,num_person)
-        self.softmax = nn.LogSoftmax(dim=1)
+        # default image size :128
+        d_in=3
+        d_out=dim
+        self.n_layer = n_layer
+        self.blocks=[]
+        for i in range(n_layer):
+            conv = nn.Conv2d(d_in,d_out,4,2)
+            bn = nn.BatchNorm2d(d_out)
+            relu = nn.ReLU()
+            seq=nn.Sequential(conv,bn,relu)
+            self.blocks.append(seq)
+            d_in=d_out
+            d_out*=2
         
     def forward(self, input):
-        x = self.conv1(input)
-        x = self.relu(x)
-        x = self.max_pooling(x)
-
-        x = self.conv2(x)
-        x = self.relu(x)
-        x = self.max_pooling(x)
-
-        x = self.conv3(x)
-        x = self.relu(x)
-        x = self.max_pooling(x)
-
-        x = self.conv4(x)
-        x = self.relu(x)
-        x = self.max_pooling(x)
-
-        x=self.flatlayer(x)
-        x = x.view(-1,256)
-        x=self.fc1(x)
-        x=self.fc2(x)
-
-        identity = self.softmax(self.classifylayer(x))
-
-        return x, identity
+        EncoderOutputs=[]
+        cur_input=input
+        for i in range(self.n_layer):
+            enc_out=self.blocks[i](cur_input)
+            EncoderOutputs.append(enc_out)
+            cur_input=enc_out
+        return EncoderOutputs
     
 class decoder(nn.Module):
     def __init__(self):
@@ -89,3 +70,38 @@ class att_trans(nn.Module):
         content, identity = self.encoder(img_1)
         img2_pre = self.decoder(content, img_att_2)
         return img2_pre, identity
+
+class Classifier(nn.Module):
+    def __init__(self,num_classes=40,input_dimension=128,n_layer=5,dim=64):
+        super(Classifier,self).__init__()
+        self.num_classes=num_classes
+        self.input_dimension=input_dimension
+        self.n_layer=n_layer
+        self.blocks = []
+        d_in=3
+        d_out=dim
+        for i in range(n_layer):
+            conv = nn.Conv2d(d_in, d_out, 4, 2)
+            bn = nn.BatchNorm2d(d_out)
+            relu = nn.ReLU()
+            seq = nn.Sequential(conv, bn, relu)
+            self.blocks.append(seq)
+            d_in = d_out
+            d_out *= 2
+
+        # last conv layer :4*4*1024
+        self.fc1=nn.Linear(4*4*1024,1024)
+        self.fc2=nn.Linear(1024,self.num_classes)
+        self.softmaxlayer = nn.Softmax(self.num_classes)
+    def forward(self, input):
+        cur_input=input
+        for i in range(self.n_layer):
+            output = self.blocks[i](cur_input)
+            cur_input = output
+
+        output = output.view(-1,4*4*1024)
+        output = self.fc1(output)
+        output = self.fc2(output)
+        output = self.softmaxlayer(output)
+
+        return output
