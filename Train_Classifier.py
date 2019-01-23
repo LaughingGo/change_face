@@ -103,7 +103,7 @@ if __name__ == '__main__':
         transforms.Resize((128,128)),
         transforms.ToTensor()])
 
-    train_dataset = CelebA(args.ann_file, args.image_dir, train_index_list, transform_train, transform_train)
+    train_dataset = CelebA(args.ann_file, args.image_dir, train_index_list, transform_train, transform_train,att_num=args.att_num)
     train_loader = DataLoader(train_dataset, shuffle=True, batch_size=args.batch_size, num_workers=args.nthreads)
     val_dataset = CelebA(args.ann_file, args.image_dir, eval_index_list, transform_val, transform_val)
     val_loader = DataLoader(val_dataset, shuffle=True, batch_size=args.batch_size, num_workers=args.nthreads)
@@ -115,7 +115,7 @@ if __name__ == '__main__':
     ###############################################################################
 #     encoder = Encoder()
 #     decoder = Decoder()
-    classifier = Classifier()
+    classifier = Classifier(num_classes = args.att_num)
     
 #     optimizer = optim.SGD([{'params': classifier.parameters()}], 
 #                           lr=args.lr, momentum=args.momentum,

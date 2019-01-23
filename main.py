@@ -102,9 +102,9 @@ if __name__ == '__main__':
         transforms.Resize((128,128)),
         transforms.ToTensor()])
 
-    train_dataset = CelebA(args.ann_file, args.image_dir, train_index_list, transform_train, transform_train)
+    train_dataset = CelebA(args.ann_file, args.image_dir, train_index_list, transform_train, transform_train, args.att_num)
     train_loader = DataLoader(train_dataset, shuffle=True, batch_size=args.batch_size, num_workers=args.nthreads)
-    val_dataset = CelebA(args.ann_file, args.image_dir, eval_index_list, transform_val, transform_val)
+    val_dataset = CelebA(args.ann_file, args.image_dir, eval_index_list, transform_val, transform_val, args.att_num)
     val_loader = DataLoader(val_dataset, shuffle=True, batch_size=args.batch_size, num_workers=args.nthreads)
 
     print("| Data Loaded: # training data: %d, # val data: %d" % (len(train_loader)* args.batch_size, len(val_loader) * args.batch_size))
@@ -113,13 +113,14 @@ if __name__ == '__main__':
     # Build the model
     ###############################################################################
     encoder = Encoder()
-    decoder = Decoder()
-    classifier = Classifier()
+    decoder = Decoder(att_num=args.att_num)
+    classifier = Classifier(args.att_num)
     
-    optimizer = optim.SGD([{'params': encoder.parameters()},
+    optimizer = optim.Adam([{'params': encoder.parameters()},
                                       {'params': decoder.parameters()},
-                                      {'params': classifier.parameters()}], 
-                          lr=args.lr, momentum=args.momentum,
+                #                      {'params': classifier.parameters()}
+                          ], 
+                          lr=args.lr,
                           weight_decay=args.weight_decay)
 
     encoder.cuda()
@@ -132,8 +133,8 @@ if __name__ == '__main__':
         print('loading checkpoint {}'.format(args.resume_path))
         checkpoint = torch.load(args.resume_path)
         args.start_epoch = checkpoint['epoch']
-        encoder.load_state_dict(checkpoint['encoder'])
-        decoder.load_state_dict(checkpoint['decoder'])
+     #   encoder.load_state_dict(checkpoint['encoder'])
+     #  decoder.load_state_dict(checkpoint['decoder'])
         classifier.load_state_dict(checkpoint['classifier'])
    
 
@@ -196,53 +197,54 @@ if __name__ == '__main__':
                     
 
      #logger.log_scalar('train_loss',train_loss, epoch)
-        loss_z_val = AverageMeter()
-        loss_recon_val = AverageMeter()
-        loss_classify_val = AverageMeter()
-        loss_val = AverageMeter()
-        psnr_val = AverageMeter()
-        encoder.eval()
-        decoder.eval()
-        classifier.eval()
-        for batch_idx, data in enumerate(val_loader):
-            batch_start_time = time.time()
-            img_1 = data[0].cuda()
-            img_2 = data[1].cuda()
-            img_1_atts = data[2].cuda()
-            img_2_atts = data[3].cuda() 
-            
-            z_1 = encoder(img_1)
-            z_2 = encoder(img_2)
-            img_2_trans = decoder(z_1, img_2_atts)
-            img_1_trans = decoder(z_2, img_1_atts)
-            img_1_recon = decoder(z_1, img_1_atts)
-            img_2_recon = decoder(z_2, img_2_atts)
-            img_1_atts_pre = classifier(img_1_trans)
-            img_2_atts_pre = classifier(img_2_trans)
-            
-            loss_z_cur = diff_loss(z_1, z_2)
-            loss_recon_cur = recon_loss(img_1_recon, img_1) +  recon_loss(img_2_recon, img_2)
-            loss_classify_cur = classify_loss(img_1_atts_pre, img_1_atts) + classify_loss(img_2_atts_pre, img_2_atts)           
-            
-            loss_cur = loss_z_cur + args.alpha * loss_recon_cur + args.beta * loss_classify_cur
-            psnr_cur = psnr(img_1_recon, img_1) + psnr(img_2_recon, img_2)
-            psnr_val.update(psnr_cur)
-            
-            
-            loss_z_val.update(loss_z_cur.item())
-            loss_recon_val.update(loss_recon_cur.item())
-            loss_classify_val.update(loss_classify_cur.item())
-            loss_val.update(loss_cur.item())
-            batch_time = time.time() - batch_start_time         
-            bar(batch_idx, len(val_loader), "Epoch: {:3d} | ".format(epoch),
-            ' | time {batch_time:.3f} | loss_val {:.5f} | loss_z_val {:.5f} | loss_recon_val {:.5f} | loss_classify_val {:.5f}  |'.format(
-                batch_time, loss_val.val, loss_z_val.val, loss_recon_val.val, loss_classify_val.val), end_string="")
-                
-        log_entry_val = '\n| end of epoch {:3d} | time: {:5.5f}s | valid loss {:.5f} | valid recon loss {:.5f} | valid classify loss {:.5f} | valid psnr {:5.2f}'.format(
-            epoch, (time.time() - epoch_start_time),loss_val.avg, loss_recon_val.avg, loss_classify_val.avg, psnr_val.avg)
-        print(log_entry_val)
-        with open(os.path.join(args.save, 'val.log'), 'a') as f:
-                    f.write(log_entry_val)
+        with torch.no_grad():
+            loss_z_val = AverageMeter()
+            loss_recon_val = AverageMeter()
+            loss_classify_val = AverageMeter()
+            loss_val = AverageMeter()
+            psnr_val = AverageMeter()
+            encoder.eval()
+            decoder.eval()
+            classifier.eval()
+            for batch_idx, data in enumerate(val_loader):
+                batch_start_time = time.time()
+                img_1 = data[0].cuda()
+                img_2 = data[1].cuda()
+                img_1_atts = data[2].cuda()
+                img_2_atts = data[3].cuda() 
+
+                z_1 = encoder(img_1)
+                z_2 = encoder(img_2)
+                img_2_trans = decoder(z_1, img_2_atts)
+                img_1_trans = decoder(z_2, img_1_atts)
+                img_1_recon = decoder(z_1, img_1_atts)
+                img_2_recon = decoder(z_2, img_2_atts)
+                img_1_atts_pre = classifier(img_1_trans)
+                img_2_atts_pre = classifier(img_2_trans)
+
+                loss_z_cur = diff_loss(z_1, z_2)
+                loss_recon_cur = recon_loss(img_1_recon, img_1) +  recon_loss(img_2_recon, img_2)
+                loss_classify_cur = classify_loss(img_1_atts_pre, img_1_atts) + classify_loss(img_2_atts_pre, img_2_atts)           
+
+                loss_cur = loss_z_cur + args.alpha * loss_recon_cur + args.beta * loss_classify_cur
+                psnr_cur = psnr(img_1_recon, img_1) + psnr(img_2_recon, img_2)
+                psnr_val.update(psnr_cur)
+
+
+                loss_z_val.update(loss_z_cur.item())
+                loss_recon_val.update(loss_recon_cur.item())
+                loss_classify_val.update(loss_classify_cur.item())
+                loss_val.update(loss_cur.item())
+                batch_time = time.time() - batch_start_time         
+                bar(batch_idx, len(val_loader), "Epoch: {:3d} | ".format(epoch),
+                ' | time {:.3f} | loss_val {:.5f} | loss_z_val {:.5f} | loss_recon_val {:.5f} | loss_classify_val {:.5f}  |'.format(
+                    batch_time, loss_val.val, loss_z_val.val, loss_recon_val.val, loss_classify_val.val), end_string="")
+
+            log_entry_val = '\n| end of epoch {:3d} | time: {:5.5f}s | valid loss {:.5f} | valid recon loss {:.5f} | valid classify loss {:.5f} | valid psnr {:5.2f}'.format(
+                epoch, (time.time() - epoch_start_time),loss_val.avg, loss_recon_val.avg, loss_classify_val.avg, psnr_val.avg)
+            print(log_entry_val)
+            with open(os.path.join(args.save, 'val.log'), 'a') as f:
+                        f.write(log_entry_val)
         
         if epoch%args.save_every == 0:
             states = {
