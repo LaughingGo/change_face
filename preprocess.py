@@ -4,8 +4,9 @@ image_dir = '../celebA/img_align_celeba/'
 anns = json.load(open(ann_file, 'r'))
 person_ids = anns.keys()
 index_list = []
-for person_id in range(1,100):
-    person_anns = anns['{:5d}'.format(person_id)]
+for i in range(1,1000):
+    person_id = '{:5d}'.format(person_id)
+    person_anns = anns[person_id]
     person_imgs_num = len(person_anns)
     print(person_imgs_num)
     for i in range(person_imgs_num):
