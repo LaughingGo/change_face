@@ -13,7 +13,7 @@ def parse_opts():
 
     parser.add_argument('--save', type=str, default='../results/',
                         help='path to folder where to save the final model and log files and corpus')
-    parser.add_argument('--save-every', type=int, default=10,
+    parser.add_argument('--save-every', type=int, default=1,
                         help='Save the model every x epochs')
     parser.add_argument('--eval-step', type=int, default=5,
                         help='Computing evaludation loss every x epochs')
@@ -43,7 +43,7 @@ def parse_opts():
     
     parser.add_argument('--alpha', type=float, default=1,
                         help='coefficient of reconstruction loss')
-    parser.add_argument('--beta', type=float, default=1,
+    parser.add_argument('--beta', type=float, default=0.1,
                         help='coefficient of classify loss')
     
     args = parser.parse_args()

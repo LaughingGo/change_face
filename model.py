@@ -102,7 +102,7 @@ class Classifier(nn.Module):
         # last conv layer :4*4*1024
         self.fc1=nn.Linear(4*4*1024,1024)
         self.fc2=nn.Linear(1024,self.num_classes)
-        self.softmaxlayer = nn.Softmax(dim=1)
+        self.sigmoid = nn.Sigmoid()
         self._weight_init()
         
     def _weight_init(self):
@@ -125,6 +125,6 @@ class Classifier(nn.Module):
         output = output.view(-1,4*4*1024)
         output = self.fc1(output)
         output = self.fc2(output)
-        output = self.softmaxlayer(output)
+        output = self.sigmoid(output)
 
         return output
