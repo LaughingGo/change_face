@@ -13,7 +13,8 @@ from torch.utils.data import DataLoader
 #from tensorboard_logging import Logger 
 #import progressbar
 
-from model import att_trans
+from model import Encoder, Decoder, Classifier
+from model_loss import diff_loss, recon_loss, classify_loss
 from opts import parse_opts
 from torchvision import transforms
 
@@ -91,14 +92,14 @@ if __name__ == '__main__':
     #split training and validation dataset
     pair_list = json.load(open(args.pair_file,'r'))
     random.shuffle(pair_list)
-    train_index_list = pair_list[:40000]
-    eval_index_list = pair_list[40000:]
+    train_index_list = pair_list[:400000]
+    eval_index_list = pair_list[400000:]
     
     transform_train = transforms.Compose([
-        transforms.Resize((64,64)),
+        transforms.Resize((128,128)),
         transforms.ToTensor()])
     transform_val = transforms.Compose([
-        transforms.Resize((64,64)),
+        transforms.Resize((128,128)),
         transforms.ToTensor()])
 
     train_dataset = CelebA(args.ann_file, args.image_dir, train_index_list, transform_train, transform_train)
@@ -111,14 +112,19 @@ if __name__ == '__main__':
     ###############################################################################
     # Build the model
     ###############################################################################
-    model = att_trans(100)
-    model.cuda()
-    mse_loss = torch.nn.MSELoss()
-    nll_loss = torch.nn.NLLLoss()
+    encoder = Encoder()
+    decoder = Decoder()
+    classifier = Classifier()
     
-    optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum,
+    optimizer = optim.SGD([{'params': encoder.parameters()},
+                                      {'params': decoder.parameters()},
+                                      {'params': classifier.parameters()}], 
+                          lr=args.lr, momentum=args.momentum,
                           weight_decay=args.weight_decay)
-    
+
+    encoder.cuda()
+    decoder.cuda()
+    classifier.cuda()
     ###############################################################################
     # Resume model
     ###############################################################################
@@ -126,84 +132,124 @@ if __name__ == '__main__':
         print('loading checkpoint {}'.format(args.resume_path))
         checkpoint = torch.load(args.resume_path)
         args.start_epoch = checkpoint['epoch']
-        model.load_state_dict(checkpoint['state_dict'])
+        encoder.load_state_dict(checkpoint['encoder'])
+        decoder.load_state_dict(checkpoint['decoder'])
+        classifier.load_state_dict(checkpoint['classifier'])
    
 
+    
     ###############################################################################
     # Training code
     ###############################################################################
 
     for epoch in range(args.epochs):
         epoch_start_time = time.time()
-        loss_gen = AverageMeter()
+        loss_z = AverageMeter()
+        loss_recon = AverageMeter()
         loss_classify = AverageMeter()
         loss = AverageMeter()
-        model.train()
+        encoder.train()
+        decoder.train()
+        classifier.train()
         for batch_idx, data in enumerate(train_loader):
+            optimizer.zero_grad()
             batch_start_time = time.time()
             img_1 = data[0].cuda()
             img_2 = data[1].cuda()
-            img_2_atts = data[2].cuda() 
-            person_id_num = data[3].cuda()
+            img_1_atts = data[2].cuda()
+            img_2_atts = data[3].cuda() 
             
-            img_transfer, person_pre = model(img_1, img_2_atts)
-            loss_gen_cur = mse_loss(img_transfer, img_2)
-            loss_classify_cur = nll_loss(person_pre, person_id_num)
+            z_1 = encoder(img_1)
+            z_2 = encoder(img_2)
+            img_2_trans = decoder(z_1, img_2_atts)
+            img_1_trans = decoder(z_2, img_1_atts)
+            img_1_recon = decoder(z_1, img_1_atts)
+            img_2_recon = decoder(z_2, img_2_atts)
+            img_1_atts_pre = classifier(img_1_trans)
+            img_2_atts_pre = classifier(img_2_trans)
             
-            loss_cur = loss_gen_cur + 0.1 * loss_classify_cur
+            
+            loss_z_cur = diff_loss(z_1, z_2)
+            loss_recon_cur = recon_loss(img_1_recon, img_1) +  recon_loss(img_2_recon, img_2)
+            loss_classify_cur = classify_loss(img_1_atts_pre, img_1_atts) + classify_loss(img_2_atts_pre, img_2_atts)           
+            
+            loss_cur = loss_z_cur + args.alpha * loss_recon_cur + args.beta * loss_classify_cur
             
             loss_cur.backward()
             optimizer.step()
             
             
-            loss_gen.update(loss_gen_cur.item())
+            loss_z.update(loss_z_cur.item())
+            loss_recon.update(loss_recon_cur.item())
             loss_classify.update(loss_classify_cur.item())
             loss.update(loss_cur.item())
             batch_time = time.time() - batch_start_time         
             bar(batch_idx, len(train_loader), "Epoch: {:3d} | ".format(epoch),
-            ' | time {batch_time:.3f} | loss {loss.val:5.2f} | loss_gen {loss_gen.val:5.2f} loss_classify {loss_classify.val:5.2f}  |'.format(
-                batch_time=batch_time, loss=loss, loss_gen=loss_gen, loss_classify=loss_classify), end_string="")
-                
+            ' | time {:.3f} | loss {:.5f} | loss_z {:.5f} | loss_recon {:.5f} | loss_classify {:.5f}  |'.format(
+                batch_time, loss.val, loss_z.val, loss_recon.val, loss_classify.val), end_string="")
+             
+        with open(os.path.join(args.save, 'train.log'), 'a') as f:
+                    f.write('epoch {}:\n'.format(epoch))
+                    log_entry =   ' | time {:.3f} | loss {:.5f} | loss_z {:.5f} | loss_recon {:.5f} | loss_classify {:.5f}  \n'.format(
+                        time.time()-epoch_start_time, loss.avg, loss_z.avg, loss_recon.avg, loss_classify.avg)
+                    f.write(log_entry)
+                    
+
      #logger.log_scalar('train_loss',train_loss, epoch)
-        loss_gen_val = AverageMeter()
+        loss_z_val = AverageMeter()
+        loss_recon_val = AverageMeter()
         loss_classify_val = AverageMeter()
         loss_val = AverageMeter()
         psnr_val = AverageMeter()
-        
-        model.eval()
-        for batch_idx, data in enumerate(train_loader):
+        encoder.eval()
+        decoder.eval()
+        classifier.eval()
+        for batch_idx, data in enumerate(val_loader):
             batch_start_time = time.time()
             img_1 = data[0].cuda()
             img_2 = data[1].cuda()
-            img_2_atts = data[2].cuda() 
-            person_id_num = data[3].cuda()
-
-            img_transfer, person_pre = model(img_1, img_2_atts)
-
-            loss_gen_cur = mse_loss(img_transfer, img_2)
-            loss_classify_cur = nll_loss(person_pre, person_id_num)
-            psnr_cur = psnr(img_transfer, img_2)
-
-            loss_cur = loss_gen_cur + 0.1 * loss_classify_cur
-            loss_gen_val.update(loss_gen_cur.item())
+            img_1_atts = data[2].cuda()
+            img_2_atts = data[3].cuda() 
+            
+            z_1 = encoder(img_1)
+            z_2 = encoder(img_2)
+            img_2_trans = decoder(z_1, img_2_atts)
+            img_1_trans = decoder(z_2, img_1_atts)
+            img_1_recon = decoder(z_1, img_1_atts)
+            img_2_recon = decoder(z_2, img_2_atts)
+            img_1_atts_pre = classifier(img_1_trans)
+            img_2_atts_pre = classifier(img_2_trans)
+            
+            loss_z_cur = diff_loss(z_1, z_2)
+            loss_recon_cur = recon_loss(img_1_recon, img_1) +  recon_loss(img_2_recon, img_2)
+            loss_classify_cur = classify_loss(img_1_atts_pre, img_1_atts) + classify_loss(img_2_atts_pre, img_2_atts)           
+            
+            loss_cur = loss_z_cur + args.alpha * loss_recon_cur + args.beta * loss_classify_cur
+            psnr_cur = psnr(img_1_recon, img_1) + psnr(img_2_recon, img_2)
+            psnr_val.update(psnr_cur)
+            
+            
+            loss_z_val.update(loss_z_cur.item())
+            loss_recon_val.update(loss_recon_cur.item())
             loss_classify_val.update(loss_classify_cur.item())
             loss_val.update(loss_cur.item())
-            psnr_val.update(psnr_cur.item())
-            
-
-            batch_time = time.time() - batch_start_time
-            bar(batch_idx, len(train_loader), "Epoch: {:3d} | ".format(epoch),
-            ' | time {batch_time:.3f} | loss_val {loss.val:5.2f} | loss_gen_val {loss_gen.val:5.2f} loss_classify_val {loss_classify.val:5.2f}  |'.format(
-                batch_time=batch_time, loss=loss_val, loss_gen=loss_gen_val, loss_classify=loss_classify_val), end_string="")
+            batch_time = time.time() - batch_start_time         
+            bar(batch_idx, len(val_loader), "Epoch: {:3d} | ".format(epoch),
+            ' | time {batch_time:.3f} | loss_val {:.5f} | loss_z_val {:.5f} | loss_recon_val {:.5f} | loss_classify_val {:.5f}  |'.format(
+                batch_time, loss_val.val, loss_z_val.val, loss_recon_val.val, loss_classify_val.val), end_string="")
                 
-        print('\n| end of epoch {:3d} | time: {:5.5f}s | valid loss {:5.2f} |' 
-            ' valid mse {:5.2f} | valid psnr {:5.2f}'
-                .format(epoch, (time.time() - epoch_start_time),loss_val.avg, loss_gen_val.avg ,psnr_val.avg))
+        log_entry_val = '\n| end of epoch {:3d} | time: {:5.5f}s | valid loss {:.5f} | valid recon loss {:.5f} | valid classify loss {:.5f} | valid psnr {:5.2f}'.format(
+            epoch, (time.time() - epoch_start_time),loss_val.avg, loss_recon_val.avg, loss_classify_val.avg, psnr_val.avg)
+        print(log_entry_val)
+        with open(os.path.join(args.save, 'val.log'), 'a') as f:
+                    f.write(log_entry_val)
         
         if epoch%args.save_every == 0:
             states = {
                          'epoch': epoch,
-                         'state_dict': model.state_dict(),}
+                         'encoder': encoder.state_dict(),
+                         'decoder': decoder.state_dict(),
+                         'classifier': classifier.state_dict()}
             torch.save(states, os.path.join(args.save, 'checkpoint_' + str(epoch) + '.pth'))
             
             

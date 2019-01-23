@@ -19,20 +19,17 @@ class CelebA(Dataset):
         person_id = cp_get['person_id']
         img_1_id = cp_get['img_1']
         img_2_id = cp_get['img_2']
-        person_anns = self.anns['{:5d}'.format(person_id)]
+        person_anns = self.anns[person_id]
         img_1_name = person_anns[img_1_id]["image_id"]
-        #print('person_id:'+str(person_id))
-#         if not os.path.exists(os.path.join(self.image_dir, img_1_name)):
-#             print(img_1_name)
         img_1 = cv2.imread(os.path.join(self.image_dir, img_1_name))
         img_1 = Image.fromarray(img_1)
         img_1 = self.input_transform(img_1)
+        img_1_atts =  (torch.FloatTensor(person_anns[img_1_id]["attribute"])+1)/2
         img_2_name = person_anns[img_2_id]["image_id"]
         img_2 = Image.fromarray(cv2.imread(os.path.join(self.image_dir, img_2_name)))
         img_2 = self.target_transform(img_2)
-        img_2_atts =  torch.FloatTensor(person_anns[img_2_id]["attribute"])
-        person_id_num = torch.LongTensor([int(person_id)])[0] - 1
-        return img_1, img_2, img_2_atts, person_id_num
+        img_2_atts =  (torch.FloatTensor(person_anns[img_2_id]["attribute"])+1)/2
+        return img_1, img_2, img_1_atts, img_2_atts
     
     def __len__(self):
         return len(self.index_list) 
