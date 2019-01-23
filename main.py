@@ -160,12 +160,13 @@ if __name__ == '__main__':
             
             z_1 = encoder(img_1)
             z_2 = encoder(img_2)
-            img_2_trans = decoder(z_1)
-            img_1_trans = decoder(z_2)
-            img_1_recon = decoder(z_1)
-            img_2_recon = decoder(z_2)
+            img_2_trans = decoder(z_1, img_2_atts)
+            img_1_trans = decoder(z_2, img_1_atts)
+            img_1_recon = decoder(z_1, img_1_atts)
+            img_2_recon = decoder(z_2, img_2_atts)
             img_1_atts_pre = classifier(img_1_recon)
             img_2_atts_pre = classifier(img_2_recon)
+            
             
             loss_z_cur = diff_loss(z_1, z_2)
             loss_recon_cur = recon_loss(img_1_recon, img_1) +  recon_loss(img_2_recon, img_2)
@@ -204,10 +205,10 @@ if __name__ == '__main__':
             
             z_1 = encoder(img_1)
             z_2 = encoder(img_2)
-            img_2_trans = decoder(z_1)
-            img_1_trans = decoder(z_2)
-            img_1_recon = decoder(z_1)
-            img_2_recon = decoder(z_2)
+            img_2_trans = decoder(z_1, img_2_atts)
+            img_1_trans = decoder(z_2, img_1_atts)
+            img_1_recon = decoder(z_1, img_1_atts)
+            img_2_recon = decoder(z_2, img_2_atts)
             img_1_atts_pre = classifier(img_1_recon)
             img_2_atts_pre = classifier(img_2_recon)
             

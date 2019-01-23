@@ -1,4 +1,4 @@
-import torch
+import torch.nn as nn
 
 def recon_loss(input, target):
     mse_loss = nn.MSELoss()

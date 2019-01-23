@@ -34,12 +34,17 @@ def parse_opts():
                         help='starting epoch')
     parser.add_argument('--epochs', type=int, default=100,
                         help='upper epoch limit')
-    parser.add_argument('--batch-size', type=int, default=512,
+    parser.add_argument('--batch-size', type=int, default=128,
                         help='batch size')
     parser.add_argument('--resume-path', type=str, default=None,
                         help='the path of model to resume')
     parser.add_argument('--nthreads', type=int, default=16,
                         help='number of threads to load data')
+    
+    parser.add_argument('--alpha', type=float, default=1,
+                        help='coefficient of reconstruction loss')
+    parser.add_argument('--beta', type=float, default=1,
+                        help='coefficient of classify loss')
     
     args = parser.parse_args()
     
