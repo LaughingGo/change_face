@@ -1,7 +1,7 @@
 import argparse
 
 def parse_opts():
-    parser = argparse.ArgumentParser(description='video features to S3D Model')
+    parser = argparse.ArgumentParser()
     # Location of data
     parser.add_argument('--ann-file', type=str, default='data/annotation.json',
                         help='annotation file of the dataset')
@@ -45,6 +45,8 @@ def parse_opts():
                         help='coefficient of reconstruction loss')
     parser.add_argument('--beta', type=float, default=0.1,
                         help='coefficient of classify loss')
+    parser.add_argument('--att-num', type=int, default=6,
+                        help='attribute number to classify')
     
     args = parser.parse_args()
     
