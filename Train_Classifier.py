@@ -94,7 +94,8 @@ if __name__ == '__main__':
     random.shuffle(pair_list)
     train_index_list = pair_list[:400000]
     eval_index_list = pair_list[400000:]
-    
+#     train_index_list = pair_list[:10000]
+#     eval_index_list = pair_list[10000:12000]
     transform_train = transforms.Compose([
         transforms.Resize((128,128)),
         transforms.ToTensor()])
@@ -198,47 +199,48 @@ if __name__ == '__main__':
 #         encoder.eval()
 #         decoder.eval()
         classifier.eval()
-        for batch_idx, data in enumerate(val_loader):
-            batch_start_time = time.time()
-            img_1 = data[0].cuda()
-            img_2 = data[1].cuda()
-            img_1_atts = data[2].cuda()
-            img_2_atts = data[3].cuda() 
-            
-#             z_1 = encoder(img_1)
-#             z_2 = encoder(img_2)
-#             img_2_trans = decoder(z_1, img_2_atts)
-#             img_1_trans = decoder(z_2, img_1_atts)
-#             img_1_recon = decoder(z_1, img_1_atts)
-#             img_2_recon = decoder(z_2, img_2_atts)
-            img_1_atts_pre = classifier(img_1)
-            img_2_atts_pre = classifier(img_2)
-            
-#             loss_z_cur = diff_loss(z_1, z_2)
-#             loss_recon_cur = recon_loss(img_1_recon, img_1) +  recon_loss(img_2_recon, img_2)
-            loss_classify_cur = classify_loss(img_1_atts_pre, img_1_atts) + classify_loss(img_2_atts_pre, img_2_atts)           
-            
-            loss_cur = loss_classify_cur
-#             psnr_cur = psnr(img_1_recon, img_1) + psnr(img_2_recon, img_2)
-#             psnr_val.update(psnr_cur)
-            
-            
-#             loss_z_val.update(loss_z_cur.item())
-#             loss_recon_val.update(loss_recon_cur.item())
-            loss_classify_val.update(loss_classify_cur.item())
-            loss_val.update(loss_cur.item())
-            batch_time = time.time() - batch_start_time         
-#             bar(batch_idx, len(val_loader), "Epoch: {:3d} | ".format(epoch),
-#             ' | time {batch_time:.3f} | loss_val {loss_val.val:.5f} | loss_classify_val {loss_classify.val:.5f}  |'.format(
-#                 batch_time=batch_time, loss_val=loss_val, loss_classify_val=loss_classify_val), end_string="")
-            bar(batch_idx, len(val_loader), "Epoch: {:3d} | ".format(epoch),
-            ' | time {batch_time:.3f} | loss_val {:.5f} | loss_classify_val {:.5f}  |'.format(
-                batch_time, loss_val.val, loss_classify_val.val), end_string="")
-                
-        print('\n| end of epoch {:3d} | time: {:5.5f}s | valid loss {:.5f} |' 
-            ' valid classify loss {:.5f}'
-                .format(epoch, (time.time() - epoch_start_time),loss_val.avg, loss_classify_val.avg))
-        
+        with torch.no_grad():
+            for batch_idx, data in enumerate(val_loader):
+                batch_start_time = time.time()
+                img_1 = data[0].cuda()
+                img_2 = data[1].cuda()
+                img_1_atts = data[2].cuda()
+                img_2_atts = data[3].cuda() 
+
+    #             z_1 = encoder(img_1)
+    #             z_2 = encoder(img_2)
+    #             img_2_trans = decoder(z_1, img_2_atts)
+    #             img_1_trans = decoder(z_2, img_1_atts)
+    #             img_1_recon = decoder(z_1, img_1_atts)
+    #             img_2_recon = decoder(z_2, img_2_atts)
+                img_1_atts_pre = classifier(img_1)
+                img_2_atts_pre = classifier(img_2)
+
+    #             loss_z_cur = diff_loss(z_1, z_2)
+    #             loss_recon_cur = recon_loss(img_1_recon, img_1) +  recon_loss(img_2_recon, img_2)
+                loss_classify_cur = classify_loss(img_1_atts_pre, img_1_atts) + classify_loss(img_2_atts_pre, img_2_atts)           
+
+                loss_cur = loss_classify_cur
+    #             psnr_cur = psnr(img_1_recon, img_1) + psnr(img_2_recon, img_2)
+    #             psnr_val.update(psnr_cur)
+
+
+    #             loss_z_val.update(loss_z_cur.item())
+    #             loss_recon_val.update(loss_recon_cur.item())
+                loss_classify_val.update(loss_classify_cur.item())
+                loss_val.update(loss_cur.item())
+                batch_time = time.time() - batch_start_time         
+    #             bar(batch_idx, len(val_loader), "Epoch: {:3d} | ".format(epoch),
+    #             ' | time {batch_time:.3f} | loss_val {loss_val.val:.5f} | loss_classify_val {loss_classify.val:.5f}  |'.format(
+    #                 batch_time=batch_time, loss_val=loss_val, loss_classify_val=loss_classify_val), end_string="")
+                bar(batch_idx, len(val_loader), "Epoch: {:3d} | ".format(epoch),
+                ' | time {:.3f} | loss_val {:.5f} | loss_classify_val {:.5f}  |'.format(
+                    batch_time, loss_val.val, loss_classify_val.val), end_string="")
+
+            print('\n| end of epoch {:3d} | time: {:5.5f}s | valid loss {:.5f} |' 
+                ' valid classify loss {:.5f}'
+                    .format(epoch, (time.time() - epoch_start_time),loss_val.avg, loss_classify_val.avg))
+
         if epoch%args.save_every == 0:
             states = {
                          'epoch': epoch,
