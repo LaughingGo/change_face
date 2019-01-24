@@ -28,7 +28,7 @@ All the files of filtered data from CeleA dataset are in [***data***](./data) di
 
 ***preprocess.py***
  
-P:re-process data to generate desired annotations.
+Pre-process data to generate desired annotations.
 
 ***opts.py***
 
