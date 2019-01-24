@@ -2,7 +2,7 @@
 
 Change photograph of a person with attributes like wearing glasses or not
 
-## The purpose of our project
+## Project Overview
 
 Facial attribute transfer is an interesting task that you can get faces of a person with attributes you want. 
 Since the aim of this task is to generate  an image, researchers always use generative adversarial net (GAN) and variational autoencoder (VAE). 
@@ -22,18 +22,30 @@ Our loss includes two reconstruction errors, two classified errors and a latent 
 We permute pairs of different images of one person to get the training data.  
 To make training efficient, we down sample the dataset to keep the target attributes of two images in a pair different.
 
-## The function of files in our project
+## Code Statement
 
 All the files of filtered data from CeleA dataset are in [***data***](./data) directory.
 
-***preprocess.py*** pre-process data to generate sample and labels, etc.
+***preprocess.py***
+ 
+P:re-process data to generate desired annotations.
 
-***opts.py*** includes configure info.
+***opts.py***
 
-***model.py*** includes the training model we build.
+Experiment configuration information.
 
-***celebA.py*** generates the class ```celebA``` for later use.
+***model.py*** 
 
-***Train_Classfier.py*** includes the classfier to validate the attributes of the picture.
+The training model we build.
 
-***main.py*** is the entrance to the whole project.
+***celebA.py*** 
+
+Generate the dataset ```celebA``` .
+
+***Train_Classfier.py*** 
+
+Training code for the classfie.
+
+***main.py***
+
+Training code for whole network.
