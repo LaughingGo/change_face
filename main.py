@@ -10,8 +10,6 @@ from torch.utils.data import DataLoader
 from celebA import CelebA
 
 from torch.utils.data import DataLoader
-#from tensorboard_logging import Logger 
-#import progressbar
 
 from model import Encoder, Decoder, Classifier
 from model_loss import diff_loss, recon_loss, classify_loss
@@ -85,15 +83,12 @@ if __name__ == '__main__':
     log_path = os.path.join(args.save,'log')
     if not os.path.isdir(log_path):
         os.makedirs(log_path)
-
-    # Create logger
-    #logger = Logger(log_path)
     
     #split training and validation dataset
     pair_list = json.load(open(args.pair_file,'r'))
     random.shuffle(pair_list)
-    train_index_list = pair_list[:400000]
-    eval_index_list = pair_list[400000:]
+    train_index_list = pair_list[:int(0.8*len(pair_list))]
+    eval_index_list = pair_list[int(0.8*len(pair_list)):]
     
     transform_train = transforms.Compose([
         transforms.Resize((128,128)),

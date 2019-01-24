@@ -11,7 +11,7 @@ for k in range(1,1000):
     print(person_imgs_num)
     for i in range(person_imgs_num):
         for j in range(person_imgs_num):
-            if j==i:
+             if anns[person_id][i]['attribute'][0] == anns[person_id][j]['attribute'][0]:
                 continue
             index_list.append({'person_id': person_id , 'img_1':i, 'img_2':j})
 json.dump(index_list, open('data/select_data_full.json','w'))
